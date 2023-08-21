@@ -45,25 +45,33 @@ def draw_results(data, pred_trans):
 
 
 def test(config):
+    logger = logging.getLogger()
     # Load data
     _, _, test_set = get_multibeam_datasets(config)
     test_loader = get_multibeam_loader(config, test_set, shuffle=False)
 
     dgr = DeepGlobalRegistration(config, device=config.device)
 
+    outdir = os.path.join(config.exp_dir, config.weights)
+    os.makedirs(outdir, exist_ok=True)
     results = defaultdict(dict)
+
     for _, data in tqdm(enumerate(test_loader), total=len(test_set)):
         xyz0, xyz1 = data['pcd0'][0], data['pcd1'][0]
         T_gt = data['T_gt'][0].numpy()
         xyz0np, xyz1np = xyz0.numpy(), xyz1.numpy()
-        pred_trans = dgr.register(xyz0np, xyz1np)
+        pred_trans, success = dgr.register(xyz0np, xyz1np)
 
         eval_data = data['extra_packages'][0]
-        update_results(results, eval_data, pred_trans)
+        eval_data['success'] = success
+        results = update_results(results, eval_data, pred_trans,
+                       config, outdir, logger)
 
         if config.draw_registration_results:
             draw_results(eval_data, pred_trans)
-    save_results_to_file(logging.getLogger(), results, config)
+
+    # save results from the last MBES file
+    save_results_to_file(logger, results, config, outdir)
 
 if __name__ == '__main__':
     # Set up logging
@@ -72,10 +80,6 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%m/%d %H:%M:%S',
                         handlers=[ch])
-
-    torch.manual_seed(0)
-    torch.cuda.manual_seed(0)
-
     logging.basicConfig(level=logging.INFO, format="")
 
     # Load configs
@@ -86,7 +90,7 @@ if __name__ == '__main__':
                         help='Path to multibeam data config file')
     parser.add_argument('--network_config',
                         type=str,
-                        default='network_config.yaml',
+                        default='network_configs/kitti.yaml',
                         help='Path to network config file')
     args = parser.parse_args()
     mbes_config = edict(load_config(args.mbes_config))
