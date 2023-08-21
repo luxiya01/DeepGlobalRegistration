@@ -28,7 +28,7 @@ inlier:
   
 feat:
   feat_model: 'SimpleNetBN2C'
-  feat_model_n_out: 16 # Feature dimension
+  feat_model_n_out: 32 # Feature dimension
   feat_conv1_kernel_size: 3
   normalize_feature: True
   use_xyz_feature: False
@@ -54,8 +54,7 @@ optimizer:
 
 misc:
   use_gpu: True
-  weights: 'ResUNetBN2C-feat32-kitti-v0.3.pth' # 'ResUNetBN2C-feat32-3dmatch-v0.05.pth'
-  weights_dir: ''
+  weights: 'weights/ResUNetBN2C-feat32-kitti-v0.3.pth'
   resume: ''
   resume_dir: ''
   fast_validation: False
@@ -63,5 +62,5 @@ misc:
 
 evaluation:
   hit_ratio_thresh: 0.1
-  success_rte_thresh: 0.3 # Success if the RTE below this (m)
-  success_rre_thresh: 15 # Success if the RTE below this (degree)
+  success_rte_thresh: 0.5 # 0.3 # Success if the RTE below this (m)
+  success_rre_thresh: 1. # 15 # Success if the RTE below this (degree)
