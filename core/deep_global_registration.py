@@ -66,6 +66,10 @@ class DeepGlobalRegistration:
     self.config = config
     self.clip_weight_thresh = self.config.clip_weight_thresh
     self.device = device
+    if 'wsum_threshold' in config:
+      self.wsum_threshold = config['wsum_threshold']
+    else:
+      self.wsum_threshold = 500
 
     # Safeguard
     self.safeguard_method = 'correspondence'  # correspondence, feature_matching
@@ -85,7 +89,8 @@ class DeepGlobalRegistration:
     network_config = state['config']
     self.network_config = network_config
     self.config.inlier_feature_type = network_config.inlier_feature_type
-    self.voxel_size = network_config.voxel_size
+    # self.voxel_size = network_config.voxel_size
+    self.voxel_size = self.config.voxel_size
     print(f'=> Setting voxel size to {self.voxel_size}')
 
     # FCGF network initialization
@@ -146,6 +151,7 @@ class DeepGlobalRegistration:
     # Voxelization:
     # Maintain double type for xyz to improve numerical accuracy in quantization
     sel = ME.utils.sparse_quantize(xyz / self.voxel_size, return_index=True)
+    sel = sel[1]
     npts = len(sel)
 
     xyz = torch.from_numpy(xyz[sel])
@@ -154,7 +160,7 @@ class DeepGlobalRegistration:
     coords = ME.utils.batched_coordinates([torch.floor(xyz / self.voxel_size).int()])
     feats = torch.ones(npts, 1)
 
-    return xyz.float(), coords, feats
+    return xyz.float().to(self.device), coords.to(self.device), feats.to(self.device)
 
   def fcgf_feature_extraction(self, feats, coords):
     '''
@@ -176,7 +182,7 @@ class DeepGlobalRegistration:
     corres_idx0 = torch.arange(len(nns)).long().squeeze()
     corres_idx1 = nns.long().squeeze()
 
-    return corres_idx0, corres_idx1
+    return corres_idx0.to(self.device), corres_idx1.to(self.device)
 
   def inlier_feature_generation(self, xyz0, xyz1, coords0, coords1, fcgf_feats0,
                                 fcgf_feats1, corres_idx0, corres_idx1):
@@ -201,7 +207,7 @@ class DeepGlobalRegistration:
     else:  # should never reach here
       raise TypeError('Undefined feature type')
 
-    return feat
+    return feat.to(self.device)
 
   def inlier_prediction(self, inlier_feats, coords):
     '''
@@ -269,15 +275,17 @@ class DeepGlobalRegistration:
 
     # Step 5: Registration. Note: torch's gradient may be required at this stage
     # > Case 0: Weighted Procrustes + Robust Refinement
-    wsum_threshold = max(200, len(weights) * 0.05)
+    #wsum_threshold = max(200, len(weights) * 0.05)
+    wsum_threshold = self.wsum_threshold #500
     sign = '>=' if wsum >= wsum_threshold else '<'
     print(f'=> Weighted sum {wsum:.2f} {sign} threshold {wsum_threshold}')
 
     T = np.identity(4)
+    success = True
     if wsum >= wsum_threshold:
       try:
-        rot, trans, opt_output = GlobalRegistration(xyz0[corres_idx0],
-                                                    xyz1[corres_idx1],
+        rot, trans, opt_output = GlobalRegistration(xyz0[corres_idx0].cpu(),
+                                                    xyz1[corres_idx1].cpu(),
                                                     weights=weights.detach().cpu(),
                                                     break_threshold_ratio=1e-4,
                                                     quantization_size=2 *
@@ -297,6 +305,7 @@ class DeepGlobalRegistration:
 
     else:
       # > Case 1: Safeguard RANSAC + (Optional) ICP
+      success = False
       pcd0 = make_open3d_point_cloud(xyz0)
       pcd1 = make_open3d_point_cloud(xyz1)
       T = self.safeguard_registration(pcd0,
@@ -316,4 +325,4 @@ class DeepGlobalRegistration:
           make_open3d_point_cloud(xyz1), self.voxel_size * 2, T,
           o3d.registration.TransformationEstimationPointToPoint()).transformation
 
-    return T
+    return T, success

@@ -13,6 +13,7 @@ from core.knn import find_knn_cpu
 
 
 def make_open3d_point_cloud(xyz, color=None):
+  xyz = xyz.to('cpu')
   pcd = o3d.geometry.PointCloud()
   pcd.points = o3d.utility.Vector3dVector(xyz)
   if color is not None:
