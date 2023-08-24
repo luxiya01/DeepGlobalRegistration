@@ -30,19 +30,19 @@ def registration_ransac_based_on_feature_matching(pcd0, pcd1, feats0, feats1,
                                                   distance_threshold, num_iterations):
   assert feats0.shape[1] == feats1.shape[1]
 
-  source_feat = o3d.registration.Feature()
+  source_feat = o3d.pipelines.registration.Feature()
   source_feat.resize(feats0.shape[1], len(feats0))
   source_feat.data = feats0.astype('d').transpose()
 
-  target_feat = o3d.registration.Feature()
+  target_feat = o3d.pipelines.registration.Feature()
   target_feat.resize(feats1.shape[1], len(feats1))
   target_feat.data = feats1.astype('d').transpose()
 
-  result = o3d.registration.registration_ransac_based_on_feature_matching(
+  result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
       pcd0, pcd1, source_feat, target_feat, distance_threshold,
-      o3d.registration.TransformationEstimationPointToPoint(False), 4,
-      [o3d.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)],
-      o3d.registration.RANSACConvergenceCriteria(num_iterations, 1000))
+      o3d.pipelines.registration.TransformationEstimationPointToPoint(False), 4,
+      [o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)],
+      o3d.pipelines.registration.RANSACConvergenceCriteria(num_iterations, 1000))
 
   return result.transformation
 
@@ -52,10 +52,10 @@ def registration_ransac_based_on_correspondence(pcd0, pcd1, idx0, idx1,
   corres = np.stack((idx0, idx1), axis=1)
   corres = o3d.utility.Vector2iVector(corres)
 
-  result = o3d.registration.registration_ransac_based_on_correspondence(
+  result = o3d.pipelines.registration.registration_ransac_based_on_correspondence(
       pcd0, pcd1, corres, distance_threshold,
-      o3d.registration.TransformationEstimationPointToPoint(False), 4,
-      o3d.registration.RANSACConvergenceCriteria(4000000, num_iterations))
+      o3d.pipelines.registration.TransformationEstimationPointToPoint(False), 4,
+      criteria=o3d.pipelines.registration.RANSACConvergenceCriteria(4000000, num_iterations))
 
   return result.transformation
 
@@ -320,9 +320,9 @@ class DeepGlobalRegistration:
       print(f'=> Safeguard takes {safeguard_time:.2} s')
 
     if self.use_icp:
-      T = o3d.registration.registration_icp(
+      T = o3d.pipelines.registration.registration_icp(
           make_open3d_point_cloud(xyz0),
           make_open3d_point_cloud(xyz1), self.voxel_size * 2, T,
-          o3d.registration.TransformationEstimationPointToPoint()).transformation
+          o3d.pipelines.registration.TransformationEstimationPointToPoint()).transformation
 
     return T, success
