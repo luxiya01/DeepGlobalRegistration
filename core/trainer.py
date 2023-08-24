@@ -135,7 +135,7 @@ class WeightedProcrustesTrainer:
       lr = self.scheduler.get_lr()
       logging.info(f" Epoch: {epoch}, LR: {lr}")
       self._train_epoch(epoch)
-      self._save_checkpoint(epoch)
+      self._save_checkpoint(epoch, filename=f'checkpoint_{epoch}')
       self.scheduler.step()
 
       if self.test_valid and epoch % self.val_epoch_freq == 0:
@@ -551,7 +551,7 @@ class WeightedProcrustesTrainer:
   def get_data(self, iterator):
     while True:
       try:
-        input_data = iterator.next()
+        input_data = next(iterator)
       except ValueError as e:
         logging.info('Skipping an empty batch')
         continue
