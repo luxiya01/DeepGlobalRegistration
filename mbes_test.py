@@ -12,11 +12,14 @@ from easydict import EasyDict as edict
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from core.deep_global_registration import DeepGlobalRegistration
+from dataloader.base_loader import CollationFunctionFactory
 
 from dataloader.mbesdata_loader import get_multibeam_datasets, get_multibeam_loader
 from mbes_data.lib.utils import load_config, setup_seed
 from mbes_data.lib.benchmark_utils import to_o3d_pcd, to_tsfm
 from mbes_data.lib.evaluations import save_results_to_file, update_results
+
+from mbes_data.datasets import mbes_data
 setup_seed(0)
 
 
@@ -43,13 +46,21 @@ def draw_results(data, pred_trans):
     o3d.visualization.draw_geometries(
         [src_pcd, ref_pcd, src_pcd_trans, src_pcd_gt])
 
-
 def test(config):
     logger = logging.getLogger()
-    # Load data
-    _, _, test_set = get_multibeam_datasets(config)
-    test_loader = get_multibeam_loader(config, test_set, shuffle=False)
 
+    config.dataset_type = 'multibeam_npy_for_dgr'
+    train_set, val_set, test_set = mbes_data.get_multibeam_datasets(config)
+    collate_pair_fn = CollationFunctionFactory(concat_correspondences=False,
+                                            collation_type='collate_pair')
+    test_loader = torch.utils.data.DataLoader(
+        test_set,
+        batch_size=config.val_batch_size,
+        shuffle=False,
+        num_workers=config.num_workers,
+        collate_fn=collate_pair_fn,
+        pin_memory=True,
+        drop_last=False)
     dgr = DeepGlobalRegistration(config, device=config.device)
 
     outdir = os.path.join(config.exp_dir, config.weights)
@@ -57,18 +68,19 @@ def test(config):
     results = defaultdict(dict)
 
     for _, data in tqdm(enumerate(test_loader), total=len(test_set)):
-        xyz0, xyz1 = data['pcd0'][0], data['pcd1'][0]
-        T_gt = data['T_gt'][0].numpy()
-        xyz0np, xyz1np = xyz0.numpy(), xyz1.numpy()
-        pred_trans, success = dgr.register(xyz0np, xyz1np)
+        for i in range(len(data['pcd0'])):
+            xyz0, xyz1 = data['pcd0'][i], data['pcd1'][i]
+            T_gt = data['T_gt'][i].numpy()
+            xyz0np, xyz1np = xyz0.numpy(), xyz1.numpy()
+            pred_trans, success = dgr.register(xyz0np, xyz1np)
 
-        eval_data = data['extra_packages'][0]
-        eval_data['success'] = success
-        results = update_results(results, eval_data, pred_trans,
-                       config, outdir, logger)
+            eval_data = data['extra_packages'][i]
+            eval_data['success'] = success
+            results = update_results(results, eval_data, pred_trans,
+                        config, outdir, logger)
 
-        if config.draw_registration_results:
-            draw_results(eval_data, pred_trans)
+            if config.draw_registration_results:
+                draw_results(eval_data, pred_trans)
 
     # save results from the last MBES file
     save_results_to_file(logger, results, config, outdir)
