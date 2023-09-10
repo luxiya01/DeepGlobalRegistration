@@ -67,7 +67,10 @@ def test(config):
     os.makedirs(outdir, exist_ok=True)
     results = defaultdict(dict)
 
-    for _, data in tqdm(enumerate(test_loader), total=len(test_set)):
+    for idx, data in tqdm(enumerate(test_loader), total=len(test_set)):
+        if data is None:
+            logger.warning(f'Batch {idx} is None! Skipping...')
+            continue
         for i in range(len(data['pcd0'])):
             xyz0, xyz1 = data['pcd0'][i], data['pcd1'][i]
             T_gt = data['T_gt'][i].numpy()

@@ -43,7 +43,8 @@ class CollationFunctionFactory:
     if N != len(list_data):
       logging.info(f"Retain {len(list_data)} from {N} data.")
     if len(list_data) == 0:
-      raise ValueError('No data in the batch')
+      return None
+      #raise ValueError('No data in the batch')
 
     xyz0, xyz1, coords0, coords1, feats0, feats1, matching_inds, trans, extra_packages = list(
         zip(*list_data))
