@@ -102,10 +102,20 @@ class WeightedProcrustesTrainer:
     else:
       self.crit = UnbalancedLoss()
 
-    self.optimizer = getattr(optim, config.optimizer)(self.inlier_model.parameters(),
-                                                      lr=config.lr,
-                                                      momentum=config.momentum,
-                                                      weight_decay=config.weight_decay)
+#    self.optimizer = getattr(optim, config.optimizer)(self.inlier_model.parameters(),
+#                                                      lr=config.lr,
+#                                                      momentum=config.momentum,
+#                                                      weight_decay=config.weight_decay)
+    if config.optimizer == 'SGD':
+      self.optimizer = getattr(optim, config.optimizer)(
+          self.inlier_model.parameters(),
+          lr=config.lr,
+          momentum=config.momentum,
+          weight_decay=config.weight_decay)
+    elif config.optimizer == 'Adam':
+      self.optimizer = getattr(optim, config.optimizer)(
+          self.inlier_model.parameters(), lr=config.lr, weight_decay=config.weight_decay,
+          betas=(config.adam_beta1, config.adam_beta2))
     self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, config.exp_gamma)
 
     # Output preparation
@@ -166,6 +176,7 @@ class WeightedProcrustesTrainer:
     # Epoch starts from 1
     total_loss, total_num = 0, 0.0
     data_loader = self.data_loader
+    data_loader_iter = self.data_loader.__iter__()
     iter_size = self.iter_size
 
     # Meters for statistics
@@ -199,7 +210,7 @@ class WeightedProcrustesTrainer:
 
       for iter_idx in range(iter_size):
         data_timer.tic()
-        input_dict = self.get_data(self.train_data_loader_iter)
+        input_dict = self.get_data(data_loader_iter)
         data_time += data_timer.toc(average=False)
 
         # Initial inlier prediction with FCGF and KNN matching
@@ -324,6 +335,8 @@ class WeightedProcrustesTrainer:
             'f1': f1,
             'num_valid': average_valid_meter.avg,
             'gpu_used': used,
+            'RTE': regist_rte_meter.avg,
+            'RRE': regist_rre_meter.avg,
         }
 
         for k, v in stat.items():
@@ -356,7 +369,7 @@ class WeightedProcrustesTrainer:
     # Change the network to evaluation mode
     self.feat_model.eval()
     self.inlier_model.eval()
-    self.val_data_loader.dataset.reset_seed(0)
+    # self.val_data_loader.dataset.reset_seed(0)
 
     num_data = 0
     loss_meter = AverageMeter()
@@ -552,6 +565,8 @@ class WeightedProcrustesTrainer:
     while True:
       try:
         input_data = next(iterator)
+        if input_data is None:
+          raise ValueError('Data loader returned None')
       except ValueError as e:
         logging.info('Skipping an empty batch')
         continue
