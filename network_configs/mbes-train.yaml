@@ -1,0 +1,70 @@
+logging:
+  out_dir: '20230910-dgr-train-adam-expLR.01-gamma0.99'
+
+trainer:
+  trainer: 'WeightedProcrustesTrainer'
+  positive_pair_search_voxel_size_multiplier: 1.5
+  save_epoch_freq: 1
+  val_epoch_freq: 1
+  stat_freq: 40 # Frequency for writing stats to log
+  test_valid: True
+  val_max_iter: 2000
+  use_balanced_loss: False
+  inlier_direct_loss_weight: 1.
+  procrustes_loss_weight: 1.
+  trans_weight: 1
+  eval_registration: True
+  clip_weight_thresh: 0.005 # Weight threshold for detecting inliers
+  wsum_threshold: 500
+  best_val_metric: 'succ_rate'
+  val_batch_size: 1
+
+inlier:
+  inlier_model: 'ResUNetBN2C'
+  inlier_feature_type: 'ones'
+  inlier_conv1_kernel_size: 3
+  inlier_knn: 1
+  knn_search_method: 'gpu'
+  inlier_use_direct_loss: True
+  
+feat:
+  feat_model: 'ResUNetBN2C'
+  feat_model_n_out: 32 # Feature dimension
+  feat_conv1_kernel_size: 5
+  normalize_feature: True
+  use_xyz_feature: False
+  dist_type: 'L2'
+
+optimizer:
+  optimizer: 'Adam'
+  max_epoch: 20
+  lr: 0.001
+  momentum: 0.8
+  sgd_momentum: 0.9
+  sgd_dampening: 0.1
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  weight_decay: 0.0001
+  iter_size: 1 # accumulate gradient
+  bn_momentum: 0.05
+  num_train_iter: -1 # train N iter if positive
+  icp_cache_path: 'icp'
+  scheduler: 'ExpLR'
+  # For ExpLR
+  exp_gamma: 0.9
+  # For OneCycleLR
+  max_lr: .03
+
+
+misc:
+  use_gpu: True
+  weights: '../FCGF/20230821-OneCycle-LR.01-posthresh.4-negthresh-3.0/20230821-17-26-45/20230824-13-15-10/20230825-18-13-07/20230905-12-19-21/checkpoint_96.pth'
+  resume: 
+  resume_dir: ''
+  fast_validation: False
+  nn_max_n: 250 # The maximum number of features to find nearest neighbors in batch
+
+evaluation:
+  hit_ratio_thresh: 2.0
+  success_rte_thresh: 10. # 0.3 # Success if the RTE below this (m)
+  success_rre_thresh: 5. # 15 # Success if the RTE below this (degree)
