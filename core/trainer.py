@@ -116,7 +116,13 @@ class WeightedProcrustesTrainer:
       self.optimizer = getattr(optim, config.optimizer)(
           self.inlier_model.parameters(), lr=config.lr, weight_decay=config.weight_decay,
           betas=(config.adam_beta1, config.adam_beta2))
-    self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, config.exp_gamma)
+    if config.scheduler == 'ExpLR':
+      self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, config.exp_gamma)
+    elif config.scheduler == 'OneCycleLR':
+      self.scheduler = optim.lr_scheduler.OneCycleLR(self.optimizer,
+                                                     max_lr=config.max_lr,
+                                                     epochs=config.max_epoch,
+                                                     steps_per_epoch=len(data_loader))
 
     # Output preparation
     ensure_dir(self.checkpoint_dir)
@@ -305,6 +311,8 @@ class WeightedProcrustesTrainer:
           logging.info(f'Clearing the NaN gradient at iter {curr_iter}')
         else:
           self.optimizer.step()
+          if self.config.scheduler == 'OneCycleLR':
+            self.scheduler.step()
 
       total_loss += batch_loss
       total_num += 1.0
@@ -369,7 +377,7 @@ class WeightedProcrustesTrainer:
     # Change the network to evaluation mode
     self.feat_model.eval()
     self.inlier_model.eval()
-    # self.val_data_loader.dataset.reset_seed(0)
+    self.val_data_loader.dataset.reset_seed(0)
 
     num_data = 0
     loss_meter = AverageMeter()
